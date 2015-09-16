@@ -40,15 +40,17 @@ void setup(void)
 { 
   Serial.begin(9600);
   while(!Serial); // Leonardo/Micro should wait for serial init
-  Serial.println(F("Adafruit Bluefruit Low Energy nRF8001 Print echo demo"));
+  Serial.println(F("Bluetootht Low Energy nRF8001 - Sigfox demo"));
 
   BTLEserial.setDeviceName("ADAFRU"); /* 7 characters max! */
 
   BTLEserial.begin();
-
   Akene.begin();
-
-  
+  Serial.println(F("Sigfox chip initialized"));
+  Serial.print(F("Akene Chip Rev. : "));
+  Serial.println(Akene.getRev());
+  Serial.print(F("Akene Chip Id : "));
+  Serial.println(Akene.getID());
 }
 
 /**************************************************************************/
@@ -60,6 +62,7 @@ aci_evt_opcode_t laststatus = ACI_EVT_DISCONNECTED;
 
 void loop()
 {
+  bool didReceiveBTLE = false;
   // Tell the nRF8001 to do whatever it should be working on.
   BTLEserial.pollACI();
 
@@ -85,16 +88,16 @@ void loop()
     // Lets see if there's any data for us!
     if (BTLEserial.available()) {
       Serial.print("* "); Serial.print(BTLEserial.available()); Serial.println(F(" bytes available from BTLE"));
+      didReceiveBTLE = true;
     }
     // OK while we still have something to read, get a character and print it out
     while (BTLEserial.available()) {
       char c = BTLEserial.read();
       Serial.print(c);
-      while (!Akene.isReady()) {
-        Serial.println("Modem not ready for DATA_IN");
-        delay(1000);
-      }      
-      Akene.send(&DATA_IN, sizeof(DATA_IN));
+    }
+    if (didReceiveBTLE) {
+      sendToSigfox(DATA_IN);
+      didReceiveBTLE = false;
     }
 
     // Next up, see if we have any data to get from the Serial console
@@ -113,11 +116,21 @@ void loop()
 
       // write the data
       BTLEserial.write(sendbuffer, sendbuffersize);
-      while (!Akene.isReady()) {
-        Serial.println("Modem not ready for DATA_OUT");
-        delay(1000);
-      }
-      Akene.send(&DATA_OUT, sizeof(DATA_OUT));
+      sendToSigfox(DATA_OUT);
     }
   }
+}
+
+void sendToSigfox(int data)
+{
+  Serial.print("Sending ");
+  Serial.print(data);
+  Serial.println(" to Sigfox");
+  Serial.println("Waiting for modem to be ready");
+  while (!Akene.isReady()) {
+    delay(1000);
+    Serial.print(".");
+  }     
+  Akene.send(&data, sizeof(data));
+  Serial.println("\n Data sent to Sigfox network"); 
 }
